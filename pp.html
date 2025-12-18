@@ -61,7 +61,7 @@
                 
                 <div class="flex-1 min-w-0 pr-4">
                     <div class="flex items-center gap-2 mb-1">
-                        <span v-if="map.mods" 
+                        <span v-if="map.mods !== 'NM'" 
                               :class="getModColor(map.mods)"
                               class="shrink-0 px-2 py-0.5 rounded text-xs font-bold text-white shadow-sm">
                             {{ map.mods }}
@@ -148,8 +148,7 @@
                     if (!mod) return 'hidden';
                     const m = mod.toString().toUpperCase();
                     if (m === "DT") return 'bg-red-500'; // 빨강
-                    if (m === "HT") return 'bg-blue-500'; // 파랑
-                    return 'bg-gray-600'; // 그 외 (NM 등)
+                    if (m === "HT") return 'bg-green-500'; // 파랑
                 }
             }
         }).mount('#app')
