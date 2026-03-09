@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Turing Machine</title>
+    
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            },
+            startup: {
+                typeset: true
+            }
+        };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body { font-family: monospace; background-color: #f4f4f9; color: #333; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #machine-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 90%; max-width: 900px; }
+        
+        .tape-window { display: flex; justify-content: center; overflow: hidden; margin-bottom: 20px; border: 2px solid #333; padding: 10px; background: #fff; }
+        .cell { width: 40px; height: 40px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 2px; }
+        .cell.head { border-color: red; background-color: #ffe6e6; border-width: 3px; }
+        
+        .info-panel { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 16px; padding: 10px; background: #eef; border-radius: 4px; align-items: center; }
+        .status-badge { font-weight: bold; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: #fff; }
+        
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .panel { padding: 15px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; }
+        .panel h3 { margin-top: 0; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        
+        input, select, button { padding: 5px; font-size: 14px; margin: 2px; font-family: monospace; }
+        .input-group { display: flex; gap: 5px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+        
+        button.action-btn { background-color: #007bff; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+        button.action-btn:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button.danger-btn { background-color: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+
+<div id="machine-container">
+    <h2 style="text-align: center;">Turing Machine</h2>
+    <p style="text-align: center; margin-top: -10px;">$M = (Q, \Sigma, \Gamma, \delta, q_0, \Box, F)$</p>
+    
+    <div class="info-panel">
+        <div>$q$: <span id="current-state" style="font-weight: bold; color: blue;">q0</span></div>
+        <div>Steps: <span id="step-count">0</span></div>
+        <div>Result: <span id="machine-status" class="status-badge">Running</span></div>
+    </div>
+    
+    <div class="tape-window" id="tape"></div>
+    
+    <div style="text-align: center; margin-bottom: 20px;">
+        <button class="action-btn" id="btn-step" onclick="step()">Step</button>
+        <button class="action-btn" id="btn-run" onclick="run()">Run</button>
+        <button class="action-btn" id="btn-pause" onclick="pause()" disabled>Pause</button>
+    </div>
+
+    <div class="grid-layout">
+        <div class="panel">
+            <h3>Machine Setup ($w, q_0, F$)</h3>
+            <div class="input-group">
+                <label>Input String ($w$):</label>
+                <input type="text" id="init-tape-input" value="0000" style="width: 120px;">
+            </div>
+            <div class="input-group">
+                <label>Start State ($q_0$):</label>
+                <input type="text" id="init-state-input" value="q0" style="width: 60px;">
+            </div>
+            <div class="input-group">
+                <label>Final States ($F$):</label>
+                <input type="text" id="final-states-input" value="qf" style="width: 120px;" placeholder="comma separated">
+            </div>
+            <button class="action-btn" onclick="resetMachine()" style="width: 100%; margin-top: 10px;">Apply & Reset</button>
+        </div>
+
+        <div class="panel">
+            <h3>Add Transition Rule ($\delta$)</h3>
+            <div class="input-group" style="justify-content: center; flex-wrap: nowrap; white-space: nowrap;">
+                $\delta($
+                <input type="text" id="rule-state" style="width: 40px; text-align: center;" placeholder="q" value="q0">,
+                <input type="text" id="rule-read" style="width: 30px; text-align: center;" placeholder="σ" value="1" maxlength="1">
+                $) = ($
+                <input type="text" id="rule-next" style="width: 40px; text-align: center;" placeholder="q'" value="q0">,
+                <input type="text" id="rule-write" style="width: 30px; text-align: center;" placeholder="γ" value="1" maxlength="1">,
+                <select id="rule-move" style="width: 40px; text-align: center;">
+                    <option value="L">L</option>
+                    <option value="R" selected>R</option>
+                </select>
+                $)$
+            </div>
+            <button class="action-btn" onclick="addRule()" style="width: 100%; margin-top: 5px;">Add Rule</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Transition Function Table</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>$q \in Q$</th>
+                    <th>$\sigma \in \Gamma$</th>
+                    <th>$q' \in Q$</th>
+                    <th>$\gamma \in \Gamma$</th>
+                    <th>$D \in \{L, R\}$</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="transition-tbody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let tape = [];
+    let headPosition = 0;
+    let currentState = 'q0';
+    let finalStates = ['qf'];
+    let steps = 0;
+    let runInterval = null;
+
+    let delta = {};
+
+    function renderTable() {
+        const tbody = document.getElementById('transition-tbody');
+        tbody.innerHTML = '';
+        
+        for (const state in delta) {
+            for (const readSymbol in delta[state]) {
+                const rule = delta[state][readSymbol];
+                const tr = document.createElement('tr');
+                
+                tr.innerHTML = `
+                    <td>${state}</td>
+                    <td>${readSymbol}</td>
+                    <td>${rule.nextState}</td>
+                    <td>${rule.write}</td>
+                    <td>${rule.move}</td>
+                    <td><button class="danger-btn" onclick="deleteRule('${state}', '${readSymbol}')">Delete</button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+        
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            MathJax.typesetPromise([tbody]).catch((err) => console.log(err.message));
+        }
+    }
+
+    function addRule() {
+        const s = document.getElementById('rule-state').value.trim();
+        let r = document.getElementById('rule-read').value.trim();
+        const ns = document.getElementById('rule-next').value.trim();
+        let w = document.getElementById('rule-write').value.trim();
+        const m = document.getElementById('rule-move').value;
+
+        if (!s || !ns) return;
+        
+        r = r === '' ? '$\\Box$' : r;
+        w = w === '' ? '$\\Box$' : w;
+
+        if (!delta[s]) delta[s] = {};
+        delta[s][r] = { write: w, move: m, nextState: ns };
+        
+        renderTable();
+    }
+
+    function deleteRule(state, readSymbol) {
+        if (delta[state] && delta[state][readSymbol]) {
+            delete delta[state][readSymbol];
+            if (Object.keys(delta[state]).length === 0) {
+                delete delta[state];
+            }
+            renderTable();
+        }
+    }
+
+    function resetMachine() {
+        pause();
+        const initialString = document.getElementById('init-tape-input').value;
+        currentState = document.getElementById('init-state-input').value.trim() || 'q0';
+        
+        const fInput = document.getElementById('final-states-input').value;
+        finalStates = fInput.split(',').map(s => s.trim()).filter(s => s !== '');
+        
+        steps = 0;
+        
+        tape = Array(initialString.length + 4).fill('$\\Box$');
+        let startIdx = Math.floor((tape.length - initialString.length) / 2);
+        for (let i = 0; i < initialString.length; i++) {
+            tape[startIdx + i] = initialString[i] === ' ' ? '$\\Box$' : initialString[i];
+        }
+        headPosition = startIdx;
+        
+        document.getElementById('current-state').style.color = 'blue';
+        const statusEl = document.getElementById('machine-status');
+        statusEl.innerText = 'Running';
+        statusEl.style.color = 'black';
+        statusEl.style.borderColor = '#ccc';
+        
+        enableControls(true);
+        renderMachine();
+    }
+
+    function renderMachine() {
+        const tapeDiv = document.getElementById('tape');
+        tapeDiv.innerHTML = '';
+        
+        if (headPosition < 1) { tape.unshift('$\\Box$'); headPosition++; }
+        if (headPosition >= tape.length - 1) { tape.push('$\\Box$'); }
+
+        for (let i = 0; i < tape.length; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell' + (i === headPosition ? ' head' : '');
+            cell.innerText = tape[i];
+            tapeDiv.appendChild(cell);
+        }
+
+        document.getElementById('current-state').innerText = currentState;
+        document.getElementById('step-count').innerText = steps;
+        
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            MathJax.typesetPromise();
+        }
+    }
+
+    function checkHaltingCondition() {
+        const statusEl = document.getElementById('machine-status');
+        
+        if (finalStates.includes(currentState)) {
+            statusEl.innerText = 'Accepted';
+            statusEl.style.color = 'green';
+            statusEl.style.borderColor = 'green';
+        } else {
+            statusEl.innerText = 'Rejected';
+            statusEl.style.color = 'red';
+            statusEl.style.borderColor = 'red';
+        }
+        
+        document.getElementById('current-state').innerText = currentState + ' (Halt)';
+        enableControls(false);
+        pause();
+    }
+
+    function step() {
+        const readSymbol = tape[headPosition];
+        const transition = delta[currentState] ? delta[currentState][readSymbol] : undefined;
+
+        if (!transition) {
+            checkHaltingCondition();
+            return;
+        }
+
+        tape[headPosition] = transition.write;
+        currentState = transition.nextState;
+        headPosition += (transition.move === 'R' ? 1 : -1);
+        steps++;
+        renderMachine();
+        
+		if (finalStates.includes(currentState)) {
+			checkHaltingCondition();
+            return;
+		}
+    }
+
+    function run() {
+        document.getElementById('btn-step').disabled = true;
+        document.getElementById('btn-run').disabled = true;
+        document.getElementById('btn-pause').disabled = false;
+        
+        runInterval = setInterval(() => {
+            const readSymbol = tape[headPosition];
+            if (!delta[currentState] || !delta[currentState][readSymbol]) {
+                step();
+            } else {
+                step();
+            }
+        }, 30); 
+    }
+
+    function pause() {
+        if (runInterval) {
+            clearInterval(runInterval);
+            runInterval = null;
+        }
+        document.getElementById('btn-pause').disabled = true;
+        
+        const statusText = document.getElementById('machine-status').innerText;
+        if (statusText === 'Running') {
+            document.getElementById('btn-step').disabled = false;
+            document.getElementById('btn-run').disabled = false;
+        }
+    }
+
+    function enableControls(enable) {
+        document.getElementById('btn-step').disabled = !enable;
+        document.getElementById('btn-run').disabled = !enable;
+    }
+
+    window.onload = function() {
+        renderTable();
+        resetMachine();
+    };
+</script>
+</body>
+</html>
