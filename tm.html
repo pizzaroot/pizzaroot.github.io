@@ -166,8 +166,8 @@
 
         if (!s || !ns) return;
         
-        r = r === '' ? '$\\Box$' : r;
-        w = w === '' ? '$\\Box$' : w;
+        r = r === '' ? '□' : r;
+        w = w === '' ? '□' : w;
 
         if (!delta[s]) delta[s] = {};
         delta[s][r] = { write: w, move: m, nextState: ns };
@@ -195,10 +195,10 @@
         
         steps = 0;
         
-        tape = Array(initialString.length + 4).fill('$\\Box$');
+        tape = Array(initialString.length + 4).fill('□');
         let startIdx = Math.floor((tape.length - initialString.length) / 2);
         for (let i = 0; i < initialString.length; i++) {
-            tape[startIdx + i] = initialString[i] === ' ' ? '$\\Box$' : initialString[i];
+            tape[startIdx + i] = initialString[i] === ' ' ? '□' : initialString[i];
         }
         headPosition = startIdx;
         
@@ -216,8 +216,8 @@
         const tapeDiv = document.getElementById('tape');
         tapeDiv.innerHTML = '';
         
-        if (headPosition < 1) { tape.unshift('$\\Box$'); headPosition++; }
-        if (headPosition >= tape.length - 1) { tape.push('$\\Box$'); }
+        if (headPosition < 1) { tape.unshift('□'); headPosition++; }
+        if (headPosition >= tape.length - 1) { tape.push('□'); }
 
         for (let i = 0; i < tape.length; i++) {
             const cell = document.createElement('div');
@@ -228,10 +228,6 @@
 
         document.getElementById('current-state').innerText = currentState;
         document.getElementById('step-count').innerText = steps;
-        
-        if (window.MathJax && window.MathJax.typesetPromise) {
-            MathJax.typesetPromise();
-        }
     }
 
     function checkHaltingCondition() {
