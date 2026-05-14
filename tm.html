@@ -54,10 +54,10 @@
     </div>
 
     <h2 id="tm-title" style="text-align: center; margin-top: 0;">Turing Machine (Linz)</h2>
-    <p id="tm-tuple" style="text-align: center; margin-top: -10px;">$M = (Q, \Sigma, \Gamma, \delta, q_0, \Box, F)$</p>
+    <p id="tm-tuple" style="text-align: center; margin-top: -10px;">$M = (Q, \Sigma, \Gamma, \delta, q_0, □, F)$</p>
     
     <div class="info-panel">
-        <div>$q$: <span id="current-state" style="font-weight: bold; color: blue;">q0</span></div>
+        <div>State: <span id="current-state" style="font-weight: bold; color: blue;">q0</span></div>
         <div>Steps: <span id="step-count">0</span></div>
         <div>Result: <span id="machine-status" class="status-badge">Running</span></div>
     </div>
@@ -78,7 +78,7 @@
                 <input type="text" id="init-tape-input" value="0000" style="width: 120px;">
             </div>
             <div class="input-group">
-                <label>Start State ($q_0$):</label>
+                <label>Initial State ($q_0$):</label>
                 <input type="text" id="init-state-input" value="q0" style="width: 60px;">
             </div>
             
@@ -110,10 +110,10 @@
             <div class="input-group" style="justify-content: center; flex-wrap: nowrap; white-space: nowrap;">
                 $\delta($
                 <input type="text" id="rule-state" style="width: 40px; text-align: center;" placeholder="q" value="q0">,
-                <input type="text" id="rule-read" style="width: 30px; text-align: center;" placeholder="σ" value="1" maxlength="1">
+                <input type="text" id="rule-read" style="width: 30px; text-align: center;" placeholder="σ" value="1">
                 $) = ($
                 <input type="text" id="rule-next" style="width: 40px; text-align: center;" placeholder="q'" value="q0">,
-                <input type="text" id="rule-write" style="width: 30px; text-align: center;" placeholder="γ" value="1" maxlength="1">,
+                <input type="text" id="rule-write" style="width: 30px; text-align: center;" placeholder="γ" value="1">,
                 <select id="rule-move" style="width: 40px; text-align: center;">
                     <option value="L">L</option>
                     <option value="R" selected>R</option>
@@ -170,7 +170,7 @@
         
         if (mode === 'linz') {
             titleEl.innerText = "Turing Machine (Linz)";
-            tupleEl.innerHTML = "$M = (Q, \\Sigma, \\Gamma, \\delta, q_0, \\Box, F)$";
+            tupleEl.innerHTML = "$M = (Q, \\Sigma, \\Gamma, \\delta, q_0, □, F)$";
             document.getElementById('ui-linz').style.display = 'block';
             document.getElementById('ui-sipser').style.display = 'none';
             tapeWindow.classList.remove('sipser-mode');
@@ -196,16 +196,18 @@
         tbody.innerHTML = '';
         
         for (const state in delta) {
+			const escapedState = state.replace(/[\\'"]/g, '\\$&'); 
             for (const readSymbol in delta[state]) {
+				const escapedSymbol = readSymbol.replace(/[\\'"]/g, '\\$&');
                 const rule = delta[state][readSymbol];
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${state}</td>
+                    <td>$${state}$</td>
                     <td>${readSymbol}</td>
-                    <td>${rule.nextState}</td>
+                    <td>$${rule.nextState}$</td>
                     <td>${rule.write}</td>
-                    <td>${rule.move}</td>
-                    <td><button class="danger-btn" onclick="deleteRule('${state}', '${readSymbol}')">Delete</button></td>
+                    <td>$${rule.move}$</td>
+                    <td><button class="danger-btn" onclick="deleteRule('${escapedState}', '${escapedSymbol}')">Delete</button></td>
                 `;
                 tbody.appendChild(tr);
             }
@@ -298,14 +300,16 @@
             cell.innerText = tape[i];
             tapeDiv.appendChild(cell);
         }
-
-        document.getElementById('current-state').innerText = currentState;
+		
+		const currentStateEl = document.getElementById('current-state');
+		
+        currentStateEl.innerText = currentState;
         document.getElementById('step-count').innerText = steps;
     }
 
     function checkHaltingCondition() {
         const statusEl = document.getElementById('machine-status');
-        
+		
         if (currentMode === 'linz') {
             if (finalStates.includes(currentState)) {
                 statusEl.innerText = 'Accepted';
@@ -330,7 +334,7 @@
                 document.getElementById('current-state').innerText = currentState + ' (Reject)';
             }
         }
-        
+		
         enableControls(false);
         pause();
     }
@@ -379,12 +383,7 @@
                 pause();
                 return;
             }
-            const readSymbol = tape[headPosition];
-            if (!delta[currentState] || !delta[currentState][readSymbol]) {
-                step();
-            } else {
-                step();
-            }
+            step();
         }, 30); 
     }
 
