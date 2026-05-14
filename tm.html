@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <title>Turing Machine</title>
-    
     <script>
         window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']]
-            },
-            startup: {
-                typeset: true
-            }
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            startup: { typeset: true }
         };
     </script>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
     <style>
         body { font-family: monospace; background-color: #f4f4f9; color: #333; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         #machine-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 90%; max-width: 900px; }
         
-        .tape-window { display: flex; justify-content: center; overflow: hidden; margin-bottom: 20px; border: 2px solid #333; padding: 10px; background: #fff; }
-        .cell { width: 40px; height: 40px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 2px; }
+        .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; cursor: pointer; font-weight: bold; background: #f8f9fa; border: 1px solid #ddd; border-bottom: none; border-radius: 8px 8px 0 0; margin-right: 5px; color: #666; }
+        .tab.active { background: white; border-top: 3px solid #007bff; color: #007bff; margin-bottom: -2px; padding-bottom: 12px; }
+
+        .tape-window { display: flex; justify-content: center; overflow: hidden; margin-bottom: 20px; border: 2px solid #333; padding: 10px; background: #fff; min-height: 42px; }
+        .tape-window.sipser-mode { justify-content: flex-start; }
+        
+        .cell { min-width: 40px; height: 40px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 2px; }
         .cell.head { border-color: red; background-color: #ffe6e6; border-width: 3px; }
         
         .info-panel { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 16px; padding: 10px; background: #eef; border-radius: 4px; align-items: center; }
@@ -48,8 +48,13 @@
 <body>
 
 <div id="machine-container">
-    <h2 style="text-align: center;">Turing Machine</h2>
-    <p style="text-align: center; margin-top: -10px;">$M = (Q, \Sigma, \Gamma, \delta, q_0, \Box, F)$</p>
+    <div class="tabs">
+        <div class="tab active" id="tab-linz" onclick="switchMode('linz')">Linz Definition</div>
+        <div class="tab" id="tab-sipser" onclick="switchMode('sipser')">Sipser Definition</div>
+    </div>
+
+    <h2 id="tm-title" style="text-align: center; margin-top: 0;">Turing Machine (Linz)</h2>
+    <p id="tm-tuple" style="text-align: center; margin-top: -10px;">$M = (Q, \Sigma, \Gamma, \delta, q_0, \Box, F)$</p>
     
     <div class="info-panel">
         <div>$q$: <span id="current-state" style="font-weight: bold; color: blue;">q0</span></div>
@@ -67,7 +72,7 @@
 
     <div class="grid-layout">
         <div class="panel">
-            <h3>Machine Setup ($w, q_0, F$)</h3>
+            <h3>Machine Setup</h3>
             <div class="input-group">
                 <label>Input String ($w$):</label>
                 <input type="text" id="init-tape-input" value="0000" style="width: 120px;">
@@ -76,11 +81,28 @@
                 <label>Start State ($q_0$):</label>
                 <input type="text" id="init-state-input" value="q0" style="width: 60px;">
             </div>
-            <div class="input-group">
-                <label>Final States ($F$):</label>
-                <input type="text" id="final-states-input" value="qf" style="width: 120px;" placeholder="comma separated">
+            
+            <!-- Linz -->
+            <div id="ui-linz">
+                <div class="input-group">
+                    <label>Final States ($F$):</label>
+                    <input type="text" id="final-states-input" value="qf" style="width: 120px;" placeholder="comma separated">
+                </div>
             </div>
-            <button class="action-btn" onclick="resetMachine()" style="width: 100%; margin-top: 10px;">Apply & Reset</button>
+
+            <!-- Sipser -->
+            <div id="ui-sipser" style="display: none;">
+                <div class="input-group">
+                    <label>Accept State ($q_{accept}$):</label>
+                    <input type="text" id="accept-state-input" value="q_accept" style="width: 80px;">
+                </div>
+                <div class="input-group">
+                    <label>Reject State ($q_{reject}$):</label>
+                    <input type="text" id="reject-state-input" value="q_reject" style="width: 80px;">
+                </div>
+            </div>
+
+            <button class="action-btn" onclick="applyAndReset()" style="width: 100%; margin-top: 10px;">Apply & Reset</button>
         </div>
 
         <div class="panel">
@@ -122,14 +144,52 @@
 </div>
 
 <script>
+    let currentMode = 'linz';
+    
     let tape = [];
     let headPosition = 0;
     let currentState = 'q0';
-    let finalStates = ['qf'];
     let steps = 0;
     let runInterval = null;
-
     let delta = {};
+
+    let finalStates = ['qf'];
+    let acceptState = 'q_accept';
+    let rejectState = 'q_reject';
+
+    function switchMode(mode) {
+        if (currentMode === mode) return;
+        currentMode = mode;
+        
+        document.getElementById('tab-linz').classList.toggle('active', mode === 'linz');
+        document.getElementById('tab-sipser').classList.toggle('active', mode === 'sipser');
+        
+        const titleEl = document.getElementById('tm-title');
+        const tupleEl = document.getElementById('tm-tuple');
+        const tapeWindow = document.getElementById('tape');
+        
+        if (mode === 'linz') {
+            titleEl.innerText = "Turing Machine (Linz)";
+            tupleEl.innerHTML = "$M = (Q, \\Sigma, \\Gamma, \\delta, q_0, \\Box, F)$";
+            document.getElementById('ui-linz').style.display = 'block';
+            document.getElementById('ui-sipser').style.display = 'none';
+            tapeWindow.classList.remove('sipser-mode');
+        } else {
+            titleEl.innerText = "Turing Machine (Sipser)";
+            tupleEl.innerHTML = "$M = (Q, \\Sigma, \\Gamma, \\delta, q_0, q_{accept}, q_{reject})$";
+            document.getElementById('ui-linz').style.display = 'none';
+            document.getElementById('ui-sipser').style.display = 'block';
+            tapeWindow.classList.add('sipser-mode');
+        }
+        
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            MathJax.typesetPromise([tupleEl]);
+        }
+
+        delta = {};
+        renderTable();
+        applyAndReset();
+    }
 
     function renderTable() {
         const tbody = document.getElementById('transition-tbody');
@@ -139,7 +199,6 @@
             for (const readSymbol in delta[state]) {
                 const rule = delta[state][readSymbol];
                 const tr = document.createElement('tr');
-                
                 tr.innerHTML = `
                     <td>${state}</td>
                     <td>${readSymbol}</td>
@@ -151,7 +210,6 @@
                 tbody.appendChild(tr);
             }
         }
-        
         if (window.MathJax && window.MathJax.typesetPromise) {
             MathJax.typesetPromise([tbody]).catch((err) => console.log(err.message));
         }
@@ -165,13 +223,11 @@
         const m = document.getElementById('rule-move').value;
 
         if (!s || !ns) return;
-        
         r = r === '' ? '□' : r;
         w = w === '' ? '□' : w;
 
         if (!delta[s]) delta[s] = {};
         delta[s][r] = { write: w, move: m, nextState: ns };
-        
         renderTable();
     }
 
@@ -185,22 +241,33 @@
         }
     }
 
-    function resetMachine() {
+    function applyAndReset() {
         pause();
         const initialString = document.getElementById('init-tape-input').value;
         currentState = document.getElementById('init-state-input').value.trim() || 'q0';
-        
-        const fInput = document.getElementById('final-states-input').value;
-        finalStates = fInput.split(',').map(s => s.trim()).filter(s => s !== '');
-        
         steps = 0;
         
-        tape = Array(initialString.length + 4).fill('□');
-        let startIdx = Math.floor((tape.length - initialString.length) / 2);
-        for (let i = 0; i < initialString.length; i++) {
-            tape[startIdx + i] = initialString[i] === ' ' ? '□' : initialString[i];
+        if (currentMode === 'linz') {
+            const fInput = document.getElementById('final-states-input').value;
+            finalStates = fInput.split(',').map(s => s.trim()).filter(s => s !== '');
+            
+            tape = Array(initialString.length + 4).fill('□');
+            let startIdx = Math.floor((tape.length - initialString.length) / 2);
+            for (let i = 0; i < initialString.length; i++) {
+                tape[startIdx + i] = initialString[i] === ' ' ? '□' : initialString[i];
+            }
+            headPosition = startIdx;
+        } else {
+            acceptState = document.getElementById('accept-state-input').value.trim() || 'q_accept';
+            rejectState = document.getElementById('reject-state-input').value.trim() || 'q_reject';
+            
+            const tapeSize = Math.max(initialString.length + 15, 20);
+            tape = Array(tapeSize).fill('□');
+            for (let i = 0; i < initialString.length; i++) {
+                tape[i] = initialString[i] === ' ' ? '□' : initialString[i];
+            }
+            headPosition = 0;
         }
-        headPosition = startIdx;
         
         document.getElementById('current-state').style.color = 'blue';
         const statusEl = document.getElementById('machine-status');
@@ -210,14 +277,20 @@
         
         enableControls(true);
         renderMachine();
+
+        if (currentMode === 'sipser' && (currentState === acceptState || currentState === rejectState)) {
+            checkHaltingCondition();
+        }
     }
 
     function renderMachine() {
         const tapeDiv = document.getElementById('tape');
         tapeDiv.innerHTML = '';
         
-        if (headPosition < 1) { tape.unshift('□'); headPosition++; }
-        if (headPosition >= tape.length - 1) { tape.push('□'); }
+        if (currentMode === 'linz') {
+            if (headPosition < 1) { tape.unshift('□'); headPosition++; }
+        }
+        if (headPosition >= tape.length - 2) { tape.push('□'); }
 
         for (let i = 0; i < tape.length; i++) {
             const cell = document.createElement('div');
@@ -233,40 +306,67 @@
     function checkHaltingCondition() {
         const statusEl = document.getElementById('machine-status');
         
-        if (finalStates.includes(currentState)) {
-            statusEl.innerText = 'Accepted';
-            statusEl.style.color = 'green';
-            statusEl.style.borderColor = 'green';
+        if (currentMode === 'linz') {
+            if (finalStates.includes(currentState)) {
+                statusEl.innerText = 'Accepted';
+                statusEl.style.color = 'green';
+                statusEl.style.borderColor = 'green';
+            } else {
+                statusEl.innerText = 'Rejected';
+                statusEl.style.color = 'red';
+                statusEl.style.borderColor = 'red';
+            }
+            document.getElementById('current-state').innerText = currentState + ' (Halt)';
         } else {
-            statusEl.innerText = 'Rejected';
-            statusEl.style.color = 'red';
-            statusEl.style.borderColor = 'red';
+            if (currentState === acceptState) {
+                statusEl.innerText = 'Accepted';
+                statusEl.style.color = 'green';
+                statusEl.style.borderColor = 'green';
+                document.getElementById('current-state').innerText = currentState + ' (Accept)';
+            } else {
+                statusEl.innerText = 'Rejected';
+                statusEl.style.color = 'red';
+                statusEl.style.borderColor = 'red';
+                document.getElementById('current-state').innerText = currentState + ' (Reject)';
+            }
         }
         
-        document.getElementById('current-state').innerText = currentState + ' (Halt)';
         enableControls(false);
         pause();
     }
 
     function step() {
+        if (currentMode === 'sipser' && (currentState === acceptState || currentState === rejectState)) return;
+
         const readSymbol = tape[headPosition];
         const transition = delta[currentState] ? delta[currentState][readSymbol] : undefined;
 
         if (!transition) {
+            if (currentMode === 'sipser') {
+                currentState = rejectState;
+            }
             checkHaltingCondition();
             return;
         }
 
         tape[headPosition] = transition.write;
         currentState = transition.nextState;
-        headPosition += (transition.move === 'R' ? 1 : -1);
+        
+        if (currentMode === 'linz') {
+            headPosition += (transition.move === 'R' ? 1 : -1);
+        } else {
+            headPosition += (transition.move === 'R' ? 1 : -1);
+            if (headPosition < 0) headPosition = 0; 
+        }
+
         steps++;
         renderMachine();
         
-		if (finalStates.includes(currentState)) {
-			checkHaltingCondition();
-            return;
-		}
+        if (currentMode === 'linz' && finalStates.includes(currentState)) {
+            checkHaltingCondition();
+        } else if (currentMode === 'sipser' && (currentState === acceptState || currentState === rejectState)) {
+            checkHaltingCondition();
+        }
     }
 
     function run() {
@@ -275,6 +375,10 @@
         document.getElementById('btn-pause').disabled = false;
         
         runInterval = setInterval(() => {
+            if (currentMode === 'sipser' && (currentState === acceptState || currentState === rejectState)) {
+                pause();
+                return;
+            }
             const readSymbol = tape[headPosition];
             if (!delta[currentState] || !delta[currentState][readSymbol]) {
                 step();
@@ -305,7 +409,7 @@
 
     window.onload = function() {
         renderTable();
-        resetMachine();
+        applyAndReset();
     };
 </script>
 </body>
