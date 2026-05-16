@@ -39,6 +39,8 @@
         button.action-btn:hover { background-color: #0056b3; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         button.danger-btn { background-color: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px;}
+        button.outline-btn { background-color: transparent; color: #007bff; border: 1px solid #007bff; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+        button.outline-btn:hover { background-color: #e6f2ff; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
@@ -103,6 +105,12 @@
             </div>
 
             <button class="action-btn" onclick="applyAndReset()" style="width: 100%; margin-top: 10px;">Apply & Reset</button>
+            
+            <div style="display: flex; gap: 5px; margin-top: 10px;">
+                <button class="outline-btn" onclick="exportJSON()" style="flex: 1;">Export JSON</button>
+                <button class="outline-btn" onclick="document.getElementById('file-input').click()" style="flex: 1;">Load JSON</button>
+                <input type="file" id="file-input" style="display: none;" accept=".json" onchange="loadJSON(event)">
+            </div>
         </div>
 
         <div class="panel">
@@ -157,10 +165,56 @@
     let acceptState = 'q_accept';
     let rejectState = 'q_reject';
 
-    function switchMode(mode) {
-        if (currentMode === mode) return;
-        currentMode = mode;
+    function exportJSON() {
+        const config = {
+            mode: currentMode,
+            inputString: document.getElementById('init-tape-input').value,
+            initialState: document.getElementById('init-state-input').value,
+            finalStates: document.getElementById('final-states-input').value,
+            acceptState: document.getElementById('accept-state-input').value,
+            rejectState: document.getElementById('reject-state-input').value,
+            delta: delta
+        };
         
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "tm_config.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function loadJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const config = JSON.parse(e.target.result);
+                
+                document.getElementById('init-tape-input').value = config.inputString || '';
+                document.getElementById('init-state-input').value = config.initialState || 'q0';
+                document.getElementById('final-states-input').value = config.finalStates || 'qf';
+                document.getElementById('accept-state-input').value = config.acceptState || 'q_accept';
+                document.getElementById('reject-state-input').value = config.rejectState || 'q_reject';
+                
+                delta = config.delta || {};
+                
+                switchMode(config.mode || 'linz', false);
+            } catch (err) {
+                alert("JSON 파싱 오류: 올바른 형식의 파일이 아닙니다.");
+            }
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    function switchMode(mode, clearRules = true) {
+        if (currentMode === mode && clearRules) return;
+        
+        currentMode = mode;
         document.getElementById('tab-linz').classList.toggle('active', mode === 'linz');
         document.getElementById('tab-sipser').classList.toggle('active', mode === 'sipser');
         
@@ -186,7 +240,10 @@
             MathJax.typesetPromise([tupleEl]);
         }
 
-        delta = {};
+        if (clearRules) {
+            delta = {};
+        }
+        
         renderTable();
         applyAndReset();
     }
@@ -196,9 +253,9 @@
         tbody.innerHTML = '';
         
         for (const state in delta) {
-			const escapedState = state.replace(/[\\'"]/g, '\\$&'); 
+            const escapedState = state.replace(/[\\'"]/g, '\\$&'); 
             for (const readSymbol in delta[state]) {
-				const escapedSymbol = readSymbol.replace(/[\\'"]/g, '\\$&');
+                const escapedSymbol = readSymbol.replace(/[\\'"]/g, '\\$&');
                 const rule = delta[state][readSymbol];
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
